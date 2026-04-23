@@ -1,0 +1,2 @@
+# No Python services are used in this MediHire architecture.
+# Backend stack: Node.js + Express

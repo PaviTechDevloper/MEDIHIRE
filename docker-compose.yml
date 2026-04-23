@@ -1,0 +1,155 @@
+version: '3.9'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: medihire-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    networks:
+      - medihire-network
+
+  auth-service:
+    build:
+      context: ./services/auth-service
+      dockerfile: Dockerfile
+    container_name: medihire-auth-service
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
+    environment:
+      PORT: 4001
+      MONGO_URI: mongodb://mongodb:27017/medihire_auth
+      JWT_SECRET: supersecretkey
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      - mongodb
+    networks:
+      - medihire-network
+
+  profile-service:
+    build:
+      context: ./services/profile-service
+      dockerfile: Dockerfile
+    container_name: medihire-profile-service
+    restart: unless-stopped
+    ports:
+      - "4002:4002"
+    environment:
+      PORT: 4002
+      MONGO_URI: mongodb://mongodb:27017/medihire_profiles
+      JWT_SECRET: supersecretkey
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      - mongodb
+    networks:
+      - medihire-network
+
+  job-service:
+    build:
+      context: ./services/job-service
+      dockerfile: Dockerfile
+    container_name: medihire-job-service
+    restart: unless-stopped
+    ports:
+      - "4003:4003"
+    environment:
+      PORT: 4003
+      MONGO_URI: mongodb://mongodb:27017/medihire_jobs
+      JWT_SECRET: supersecretkey
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      - mongodb
+    networks:
+      - medihire-network
+
+  notification-service:
+    build:
+      context: ./services/notification-service
+      dockerfile: Dockerfile
+    container_name: medihire-notification-service
+    restart: unless-stopped
+    ports:
+      - "4005:4005"
+    environment:
+      PORT: 4005
+      MONGO_URI: mongodb://mongodb:27017/medihire_notifications
+      JWT_SECRET: supersecretkey
+      CLIENT_URL: http://localhost:5173
+    depends_on:
+      - mongodb
+    networks:
+      - medihire-network
+
+  application-service:
+    build:
+      context: ./services/application-service
+      dockerfile: Dockerfile
+    container_name: medihire-application-service
+    restart: unless-stopped
+    ports:
+      - "4004:4004"
+    environment:
+      PORT: 4004
+      MONGO_URI: mongodb://mongodb:27017/medihire_applications
+      JWT_SECRET: supersecretkey
+      CLIENT_URL: http://localhost:5173
+      JOB_SERVICE_URL: http://job-service:4003/api/jobs
+      NOTIFICATION_SERVICE_URL: http://notification-service:4005/api/notifications
+    depends_on:
+      - mongodb
+      - job-service
+      - notification-service
+    networks:
+      - medihire-network
+
+  api-gateway:
+    build:
+      context: ./api-gateway
+      dockerfile: Dockerfile
+    container_name: medihire-api-gateway
+    restart: unless-stopped
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: 4000
+      CLIENT_URL: http://localhost:5173
+      AUTH_SERVICE_URL: http://auth-service:4001
+      PROFILE_SERVICE_URL: http://profile-service:4002
+      JOB_SERVICE_URL: http://job-service:4003
+      APPLICATION_SERVICE_URL: http://application-service:4004
+      NOTIFICATION_SERVICE_URL: http://notification-service:4005
+    depends_on:
+      - auth-service
+      - profile-service
+      - job-service
+      - application-service
+      - notification-service
+    networks:
+      - medihire-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: medihire-frontend
+    restart: unless-stopped
+    ports:
+      - "5173:5173"
+    environment:
+      VITE_API_BASE_URL: http://localhost:4000/api
+      VITE_NOTIFICATION_URL: http://localhost:4005
+    depends_on:
+      - api-gateway
+    networks:
+      - medihire-network
+
+volumes:
+  mongo_data:
+
+networks:
+  medihire-network:
+    driver: bridge
